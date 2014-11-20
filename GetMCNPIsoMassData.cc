@@ -1,4 +1,3 @@
-
 #include <iostream>
 #include <fstream>
 #include <cmath>
@@ -13,6 +12,8 @@
 
 using namespace std;
 
+int ProcessFile(stringstream &stream, std::vector<double> &isotopeMass, std::vector<int> &elemNumIso, std::vector<int> &elemBaseA,
+                std::vector<int> &elemIsoIndex, char lib);
 int GetIsoMass(stringstream &stream, int &Z, int &A, double &mass);
 void GetDataStream( string, std::stringstream&);
 string CreateMacroName(string geoFileName, string outDirName);
@@ -22,11 +23,9 @@ int main(int argc, char **argv)
 {
 
     string word;
-    char lib, check1, check2, check3;
-    char line[256];
-    string inFileName, outDirName;
-    int result=0, offset, Z, A, version=7;
-    double mass;
+    char lib, version='7';
+    string inFileName, outDirName, fileName , test;
+    int result;
 
     std::vector<double> isotopeMass(119, 0);
     std::vector<int> elemNumIso(119, 0);
@@ -59,30 +58,31 @@ int main(int argc, char **argv)
         cout << "Incorrect number of inputs; give the MCNP files for the data to be extracted from and the output file name" << endl;
         return 1;
     }
-
-    numConv << version;
-    numConv >> lib;
+    numConv << "endf" << version;
+    numConv >> test;
+    numConv.clear();
+    numConv.str("");
 
     stream.clear();
     stream.str("");
 
     if(inFileName.back()=='/')
     {
-        stringstream tempData;
+        lib=version;
         DIR *dir;
         struct dirent *ent;
         if ((dir = opendir (inFileName.c_str())) != NULL)
         {
             while ((ent = readdir (dir)) != NULL)
             {
-                string testing = string(ent->d_name).substr(0,5);
-                string test = "endf7";
-                if(testing==test)
+                fileName = string(ent->d_name).substr(0,5);
+
+                if(fileName==test)
                 {
-                    GetDataStream(inFileName+'/'+ent->d_name, tempData);
-                    stream.str(stream.str()+'\n'+tempData.str());
-                    tempData.str("");
-                    tempData.clear();
+                    GetDataStream(inFileName+'/'+ent->d_name, stream);
+                    result+=ProcessFile(stream, isotopeMass, elemNumIso, elemBaseA, elemIsoIndex, lib);
+                    stream.str("");
+                    stream.clear();
                 }
             }
             closedir(dir);
@@ -93,6 +93,59 @@ int main(int argc, char **argv)
         GetDataStream(inFileName, stream);
         lib = inFileName[int(inFileName.length()-3)];
     }
+
+    int arraySize = elemNumIso.size();
+
+    stream.str("");
+    stream.clear();
+
+    stream << "\n" << endl;
+
+    stream << "void IsotopeMass::SetIsotopeMass()\n{\n\telemNumIso = new int [" << arraySize << "];\n\telemBaseA = new int [" << arraySize << "];\n\tisotopeMass = new double *[" << arraySize << "];\n" << endl;
+
+    for(int i=0; i<int(elemNumIso.size()); i++)
+    {
+        stream << "\telemNumIso[" << i << "] = " << elemNumIso[i] << ";" << endl;
+    }
+
+    stream << "\n" << endl;
+
+    for(int i=0; i<int(elemBaseA.size()); i++)
+    {
+        stream << "\telemBaseA[" << i << "] = " << elemBaseA[i] << ";" << endl;
+    }
+
+    stream << "\n" << endl;
+
+    stream << "\tfor(int i=0; i<" << arraySize << "; i++)\n\t{\n\t\tisotopeMass[i] = new double [elemNumIso[i]];\n\t}";
+
+    int count=0;
+    for(int i=0; i<int(elemNumIso.size()); i++)
+    {
+        for(int j=0; j<int(elemNumIso[i]); j++, count++)
+        {
+            stream << "\tisotopeMass[" << i << "]" << "[" << j << "] = " << isotopeMass[count] << ";" << endl;
+        }
+    }
+
+    stream << "\n}" << endl;
+
+    string outFileName=CreateMacroName(inFileName, outDirName);
+    SetDataStream(outFileName, stream);
+
+    if(result>1)
+        result=1;
+    return result;
+}
+
+int ProcessFile(stringstream &stream, std::vector<double> &isotopeMass, std::vector<int> &elemNumIso, std::vector<int> &elemBaseA,
+                std::vector<int> &elemIsoIndex, char lib)
+{
+    string word;
+    char check1, check2, check3;
+    char line[256];
+    int result=0, offset, Z, A;
+    double mass;
 
     while(stream)
     {
@@ -144,51 +197,6 @@ int main(int argc, char **argv)
         }
     }
 
-    int arraySize = elemNumIso.size();
-
-    stream.str("");
-    stream.clear();
-
-    /*
-
-    stream << "\n" << endl;
-
-    stream << "void IsotopeMass::SetIsotopeMass()\n{\n\telemNumIso = new int [" << arraySize << "];\n\telemBaseA = new int [" << arraySize << "];\n\tisotopeMass = new double *[" << arraySize << "];\n" << endl;
-
-    for(int i=0; i<int(elemNumIso.size()); i++)
-    {
-        stream << "\telemNumIso[" << i << "] = " << elemNumIso[i] << ";" << endl;
-    }
-
-    stream << "\n" << endl;
-
-    for(int i=0; i<int(elemBaseA.size()); i++)
-    {
-        stream << "\telemBaseA[" << i << "] = " << elemBaseA[i] << ";" << endl;
-    }
-
-    stream << "\n" << endl;
-
-    stream << "\tfor(int i=0; i<" << arraySize << "; i++)\n\t{\n\t\tisotopeMass[i] = new double [elemNumIso[i]];\n\t}";
-
-    int count=0;
-    for(int i=0; i<int(elemNumIso.size()); i++)
-    {
-        for(int j=0; j<int(elemNumIso[i]); j++, count++)
-        {
-            stream << "\tisotopeMass[" << i << "]" << "[" << j << "] = " << isotopeMass[count] << ";" << endl;
-        }
-    }
-
-    stream << "\n}" << endl;
-
-    string outFileName=CreateMacroName(inFileName, outDirName);
-    SetDataStream(outFileName, stream);
-
-    */
-
-    if(result>1)
-        result=1;
     return result;
 }
 
