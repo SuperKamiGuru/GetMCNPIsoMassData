@@ -25,7 +25,7 @@ int main(int argc, char **argv)
     string word;
     char lib, version='7';
     string inFileName, outDirName, fileName , test;
-    int result;
+    int result=0;
 
     std::vector<double> isotopeMass(119, 0);
     std::vector<int> elemNumIso(119, 0);
@@ -36,7 +36,7 @@ int main(int argc, char **argv)
 
     for(int i=0; i<119; i++)
     {
-        elemIsoIndex[i]=i;
+        elemIsoIndex.push_back(i);
     }
 
     elemNumIso[0]=1;
@@ -55,7 +55,7 @@ int main(int argc, char **argv)
     }
     else
     {
-        cout << "Incorrect number of inputs; give the MCNP files for the data to be extracted from and the output file name" << endl;
+        cout << "Incorrect number of inputs; give the MCNP files for the data to be extracted from and the output directory name" << endl;
         return 1;
     }
     numConv << "endf" << version;
@@ -92,9 +92,18 @@ int main(int argc, char **argv)
     {
         GetDataStream(inFileName, stream);
         lib = inFileName[int(inFileName.length()-3)];
+        result+=ProcessFile(stream, isotopeMass, elemNumIso, elemBaseA, elemIsoIndex, lib);
+        stream.str("");
+        stream.clear();
     }
 
     int arraySize = elemNumIso.size();
+
+    for(int i=0; i<int(elemNumIso.size()); i++)
+    {
+        if(elemNumIso[i]==0)
+            elemNumIso[i]=1;
+    }
 
     stream.str("");
     stream.clear();
@@ -117,7 +126,7 @@ int main(int argc, char **argv)
 
     stream << "\n" << endl;
 
-    stream << "\tfor(int i=0; i<" << arraySize << "; i++)\n\t{\n\t\tisotopeMass[i] = new double [elemNumIso[i]];\n\t}";
+    stream << "\tfor(int i=0; i<" << arraySize << "; i++)\n\t{\n\t\tisotopeMass[i] = new double [elemNumIso[i]];\n\t}\n" << endl;
 
     int count=0;
     for(int i=0; i<int(elemNumIso.size()); i++)
@@ -153,7 +162,7 @@ int ProcessFile(stringstream &stream, std::vector<double> &isotopeMass, std::vec
         check1=word[int(word.find_last_of('.')+1)];
         check2=word[int(word.find_last_of('.')+2)];
         check3=word[int(word.find_last_of('.')+3)];
-        if((check1==lib)&&((check2>='0')&&(check2<='9'))/*&&((check3=='c')||(check3=='d'))*/)
+        if((check1==lib)&&(check2=='0'))
         {
             if((check3=='c')||(check3=='d'))
             {
@@ -168,21 +177,29 @@ int ProcessFile(stringstream &stream, std::vector<double> &isotopeMass, std::vec
                 }
                 else if(elemBaseA[Z]>A)
                 {
+                    int oldA = elemBaseA[Z];
                     elemBaseA[Z]=A;
                     isotopeMass.insert(isotopeMass.begin()+elemIsoIndex[Z], mass);
                     offset++;
+                    for(int i=0; i<(oldA-elemBaseA[Z]-1); i++, offset++)
+                    {
+                        isotopeMass.insert(isotopeMass.begin()+elemIsoIndex[Z]+1, 0.);
+                    }
                 }
                 else
                 {
-                    for(int i=0, offset=0; i<(A-elemNumIso[Z]-elemBaseA[Z]+1); i++, offset++)
+                    for(int i=0; i<(A-elemNumIso[Z]-elemBaseA[Z]+1); i++, offset++)
                     {
                         isotopeMass.insert(isotopeMass.begin()+elemNumIso[Z]+elemIsoIndex[Z]+i, 0.);
                     }
                     isotopeMass[A-elemBaseA[Z]+elemIsoIndex[Z]]=mass;
                 }
-                for(int i=Z+1; i<119; i++)
+                if(offset>0)
                 {
-                    elemIsoIndex[i]+=offset;
+                    for(int i=Z+1; i<119; i++)
+                    {
+                        elemIsoIndex[i]+=offset;
+                    }
                 }
                 elemNumIso[Z]+=offset;
             }
@@ -217,7 +234,7 @@ int GetIsoMass(stringstream &stream, int &Z, int &A, double &mass)
     stream >> dummy >> isoNum;
 
     Z=floor(isoNum/1000);
-    A=isoNum-Z;
+    A=isoNum-Z*1000;
     return 0;
 }
 
