@@ -147,6 +147,7 @@ int main(int argc, char **argv)
     return result;
 }
 
+//extracts the isotope mass data contianed in the given MCNP CS data file
 int ProcessFile(stringstream &stream, std::vector<double> &isotopeMass, std::vector<int> &elemNumIso, std::vector<int> &elemBaseA,
                 std::vector<int> &elemIsoIndex, char lib)
 {
@@ -217,6 +218,7 @@ int ProcessFile(stringstream &stream, std::vector<double> &isotopeMass, std::vec
     return result;
 }
 
+//Extracts the mass of the isotope
 int GetIsoMass(stringstream &stream, int &Z, int &A, double &mass)
 {
     char line[256];
