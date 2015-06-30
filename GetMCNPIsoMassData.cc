@@ -6,6 +6,7 @@
 #include <sstream>
 #include <dirent.h>
 #include <iomanip>
+#include "include/ElementNames.hh"
 
 #define nMass 1.008664916
 
@@ -24,7 +25,7 @@ int main(int argc, char **argv)
 
     string word;
     char lib, version='7';
-    string inFileName, outDirName, fileName , test;
+    string inFileName, outDirName, natAbunFile, fileName , test;
     int result=0;
 
     std::vector<double> isotopeMass(119, 0);
@@ -33,6 +34,9 @@ int main(int argc, char **argv)
     std::vector<int> elemIsoIndex;
     elemIsoIndex.reserve(119);
     stringstream numConv;
+
+    ElementNames elemNames;
+    elemNames.SetElementNames();
 
     for(int i=0; i<119; i++)
     {
@@ -43,19 +47,19 @@ int main(int argc, char **argv)
 
     stringstream stream;
 
-    if(argc==4)
+    if(argc==5)
     {
-        stream << argv[1] << ' ' << argv[2] << ' ' << argv[3] ;
-        stream >> inFileName >> outDirName >> version;
+        stream << argv[1] << ' ' << argv[2] << ' ' << argv[3] << ' ' << argv[4] ;
+        stream >> inFileName >> outDirName >> natAbunFile >> version;
     }
-    else if(argc==3)
+    else if(argc==4)
     {
-        stream << argv[1] << ' ' << argv[2];
-        stream >> inFileName >> outDirName;
+        stream << argv[1] << ' ' << argv[2] << ' ' << argv[3];
+        stream >> inFileName >> outDirName >> natAbunFile;
     }
     else
     {
-        cout << "Incorrect number of inputs; give the MCNP files for the data to be extracted from and the output directory name" << endl;
+        cout << "Incorrect number of inputs; give the MCNP files for the data to be extracted from, the output directory name, and the file containing the natural abundances" << endl;
         return 1;
     }
     numConv << "endf" << version;
@@ -108,9 +112,101 @@ int main(int argc, char **argv)
     stream.str("");
     stream.clear();
 
+    numConv.str("");
+    numConv.clear();
+
+    double **natIsoAbun = new double *[elemNumIso.size()];
+
+    for(int i=0; i<int(elemNumIso.size()); i++)
+    {
+        natIsoAbun[i] = new double [elemNumIso[i]];
+        for(int j=0; j<int(elemNumIso[i]); j++)
+        {
+            natIsoAbun[i][j]=0.;
+        }
+    }
+
+    GetDataStream(natAbunFile, stream);
+
+    char letter;
+    int Z=0, A=0;
+    double abun=0.;
+    while(stream)
+    {
+        letter = stream.peek();
+        if((letter>='0')&&(letter<='9'))
+        {
+            letter = stream.get();
+            numConv.str("");
+            numConv.clear();
+            while((letter>='0')&&(letter<='9'))
+            {
+                numConv << letter;
+                letter = stream.get();
+            }
+            numConv >> A;
+
+            while(!((letter>='0')&&(letter<='9')))
+            {
+                letter = stream.get();
+            }
+            numConv.str("");
+            numConv.clear();
+            while(((letter>='0')&&(letter<='9'))||(letter=='.'))
+            {
+                numConv << letter;
+                letter = stream.get();
+            }
+            numConv >> abun;
+            if(elemBaseA[Z]<=A)
+                natIsoAbun[Z][A-elemBaseA[Z]] = abun;
+            else
+                cout << "Error: isotope Z:" << Z << " A:" << A << " Does not exist in the given G4NistElementBuilder.cc, but it does in the given isotope natural abundance file " << endl;
+        }
+        else if(((letter>='a')&&(letter<='z'))||((letter>='A')&&(letter<='Z')))
+        {
+            stream >> word;
+            if(elemNames.CheckName(word))
+            {
+                for(Z=1; Z<119; Z++)
+                {
+                    if(elemNames.CheckName(word, Z))
+                        break;
+                }
+                if(Z>107)
+                    break;
+            }
+        }
+        else
+        {
+            letter = stream.get();
+        }
+    }
+
+    double sum;
+    for(int i=0; i<int(elemNumIso.size()); i++)
+    {
+        sum=0;
+        for(int j=0; j<int(elemNumIso[i]); j++)
+        {
+            sum+=natIsoAbun[i][j];
+        }
+        if(sum!=0)
+        {
+            for(int j=0; j<int(elemNumIso[i]); j++)
+            {
+                natIsoAbun[i][j]/=sum;
+            }
+        }
+    }
+
+    stream.str("");
+    stream.clear();
+
     stream << "\n" << endl;
 
-    stream << "void IsotopeMass::SetIsotopeMass()\n{\n\telemNumIso = new int [" << arraySize << "];\n\telemBaseA = new int [" << arraySize << "];\n\tisotopeMass = new double *[" << arraySize << "];\n" << endl;
+    stream << "void IsotopeMass::SetIsotopeMass()\n{\n\telemNumIso = new int [" << arraySize << "];\n\telemBaseA = new int [" <<
+                arraySize << "];\n\tisotopeMass = new double *[" << arraySize << "];\n\tisoNatAbun = new double *[" << arraySize << "];\n"  << endl;
 
     for(int i=0; i<int(elemNumIso.size()); i++)
     {
@@ -137,10 +233,29 @@ int main(int argc, char **argv)
         }
     }
 
+    stream << "\n" << endl;
+
+    stream << "\tfor(int i=0; i<" << arraySize << "; i++)\n\t{\n\t\tisoNatAbun[i] = new double [elemNumIso[i]];\n\t}" << endl;
+
+    for(int i=0; i<int(elemNumIso.size()); i++)
+    {
+        for(int j=0; j<int(elemNumIso[i]); j++)
+        {
+            stream << "\tisoNatAbun[" << i << "]" << "[" << j << "] = " << natIsoAbun[i][j] << ";" << endl;
+        }
+    }
+
     stream << "\n}" << endl;
 
     string outFileName=CreateMacroName(inFileName, outDirName);
     SetDataStream(outFileName, stream);
+
+    for(int i=0; i<int(elemNumIso.size()); i++)
+    {
+        delete [] natIsoAbun[i];
+    }
+
+    elemNames.ClearStore();
 
     if(result>1)
         result=1;
