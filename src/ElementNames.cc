@@ -183,9 +183,16 @@ bool ElementNames::CheckName(string name, int Z)
 
 bool ElementNames::CheckName(string name)
 {
+    size_t start=0;
     if(elementName != NULL)
     {
-        if(name.substr((name.length()-2),2)==".z")
+        if(name=="Lead")
+        {
+            cout << "stop here";
+        }
+
+        start=name.length()-2;
+        if(name.substr(start, 2)==".z")
         {
             name.pop_back();
             name.pop_back();

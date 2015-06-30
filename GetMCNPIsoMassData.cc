@@ -115,15 +115,28 @@ int main(int argc, char **argv)
     numConv.str("");
     numConv.clear();
 
-    double **natIsoAbun = new double *[elemNumIso.size()];
-
+    //double **natIsoAbun = new double *[elemNumIso.size()];
+    vector <vector<double>> natIsoAbun;
+    vector<double> tempVec;
+    natIsoAbun.reserve(119);
     for(int i=0; i<int(elemNumIso.size()); i++)
     {
-        natIsoAbun[i] = new double [elemNumIso[i]];
+        /*
+        if(elemNumIso[i]!=0)
+            natIsoAbun[i] = new double [elemNumIso[i]];
+        else
+            natIsoAbun[i]=NULL;
         for(int j=0; j<int(elemNumIso[i]); j++)
         {
             natIsoAbun[i][j]=0.;
         }
+        */
+        tempVec.clear();
+        for(int j=0; j<int(elemNumIso[i]); j++)
+        {
+            tempVec.push_back(0.);
+        }
+        natIsoAbun.push_back(tempVec);
     }
 
     GetDataStream(natAbunFile, stream);
@@ -131,7 +144,7 @@ int main(int argc, char **argv)
     char letter;
     int Z=0, A=0;
     double abun=0.;
-    while(stream)
+    while(stream&&(elemBaseA.size()>Z)&&(natIsoAbun.size()>Z))
     {
         letter = stream.peek();
         if((letter>='0')&&(letter<='9'))
@@ -158,10 +171,15 @@ int main(int argc, char **argv)
                 letter = stream.get();
             }
             numConv >> abun;
-            if(elemBaseA[Z]<=A)
+            if((elemBaseA[Z]<=A)&&(A-elemBaseA[Z]<natIsoAbun[Z].size()))
                 natIsoAbun[Z][A-elemBaseA[Z]] = abun;
             else
-                cout << "Error: isotope Z:" << Z << " A:" << A << " Does not exist in the given G4NistElementBuilder.cc, but it does in the given isotope natural abundance file " << endl;
+            {
+                cout << "Warning: isotope Z:" << Z << " A:" << A << " Does not exist in the given MCNP data files, but it does in the given isotope natural abundance file " << endl;
+                cout << "Using isotope Z:" << Z << " A:" << elemBaseA[Z] << " instead " << endl;
+                if(natIsoAbun[Z].size()!=0)
+                    natIsoAbun[Z][0] += abun;
+            }
         }
         else if(((letter>='a')&&(letter<='z'))||((letter>='A')&&(letter<='Z')))
         {
@@ -250,11 +268,15 @@ int main(int argc, char **argv)
     string outFileName=CreateMacroName(inFileName, outDirName);
     SetDataStream(outFileName, stream);
 
+    /*
     for(int i=0; i<int(elemNumIso.size()); i++)
     {
-        delete [] natIsoAbun[i];
+        if(natIsoAbun[i]!=NULL)
+            delete [] natIsoAbun[i];
     }
 
+    delete [] natIsoAbun;
+    */
     elemNames.ClearStore();
 
     if(result>1)
