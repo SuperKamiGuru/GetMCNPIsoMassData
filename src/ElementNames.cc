@@ -153,8 +153,7 @@ bool ElementNames::CheckName(string name, int Z)
     {
         if(name.substr((name.length()-2),2)==".z")
         {
-            name.pop_back();
-            name.pop_back();
+            name.erase(name.length()-2, 2);
         }
 
         if(Z==0)
@@ -164,11 +163,9 @@ bool ElementNames::CheckName(string name, int Z)
             return true;
         else
         {
-            name[0] = name[0]*('A'-'a');
+            name[0] = name[0]+('A'-'a');
             if(name == elementName[Z])
                 return true;
-            else
-                name[0] = name[0]/('A'-'a');
         }
     }
     else
@@ -183,19 +180,11 @@ bool ElementNames::CheckName(string name, int Z)
 
 bool ElementNames::CheckName(string name)
 {
-    size_t start=0;
     if(elementName != NULL)
     {
-        if(name=="Lead")
+        if(name.substr((name.length()-2),2)==".z")
         {
-            cout << "stop here";
-        }
-
-        start=name.length()-2;
-        if(name.substr(start, 2)==".z")
-        {
-            name.pop_back();
-            name.pop_back();
+            name.erase(name.length()-2, 2);
         }
 
         for(int i=0; i<119; i++)
@@ -207,8 +196,6 @@ bool ElementNames::CheckName(string name)
                 name[0] = name[0]+('A'-'a');
                 if(name == elementName[i])
                     return true;
-                else
-                    name[0] = name[0]-('A'-'a');
             }
         }
     }
